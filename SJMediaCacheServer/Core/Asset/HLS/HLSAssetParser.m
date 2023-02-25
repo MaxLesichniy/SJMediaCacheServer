@@ -132,6 +132,7 @@
 - (nullable NSArray<HLS_EXT_X_URI *> *)mcs_URIs;
 
 @property (nonatomic, readonly) BOOL mcs_hasVariantStream;
+- (NSNumber *)mcs_bandwidthValue;
 @end
 
 @interface NSArray<ObjectType> (HLSURIItems)
@@ -322,7 +323,41 @@
         return;
     }
     
-    NSArray<NSString *> *components = [contents componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet];
+    // sort by `BANDWIDTH`
+    NSMutableArray<NSString *> *components = [[contents componentsSeparatedByString:@"#"] mutableCopy];
+    [components removeObject: @""];
+    for (int i = 0; i < components.count; i++) {
+        NSMutableString *str = [[components[i] stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]] mutableCopy];
+        [str insertString:@"#" atIndex:0];
+        components[i] = str;
+    }
+    NSMutableArray<NSString *> *headerComponents = [NSMutableArray array];
+    NSMutableArray<NSString *> *straemComponents = [NSMutableArray array];
+    for (NSString *str in components) {
+        if ([str hasPrefix:@"#EXT-X-STREAM-INF:"]) {
+            [straemComponents addObject:str];
+        } else {
+            [headerComponents addObject:str];
+        }
+    }
+    
+    [straemComponents sortUsingComparator:^NSComparisonResult(NSString* _Nonnull obj1, NSString* _Nonnull obj2) {
+        NSNumber *bandwidthValue1 = [obj1 mcs_bandwidthValue];
+        NSNumber *bandwidthValue2 = [obj2 mcs_bandwidthValue];
+        if (bandwidthValue1 != nil && bandwidthValue2 != nil) {
+            if (bandwidthValue1.intValue < bandwidthValue2.intValue) {
+                return NSOrderedDescending;
+            } else if (bandwidthValue1.intValue > bandwidthValue2.intValue) {
+                return NSOrderedAscending;
+            } else {
+                return NSOrderedSame;
+            }
+        }
+        return NSOrderedSame;
+    }];
+    
+    components = [[headerComponents arrayByAddingObjectsFromArray:straemComponents] mutableCopy];
+    
     NSMutableString *indexFileContents = NSMutableString.string;
     for ( NSString *str in components ) {
         if ( str.length != 0 )
@@ -715,6 +750,16 @@
 - (BOOL)mcs_hasVariantStream {
     return [self mcs_textCheckingResultsByMatchPattern:HLS_PREFIX_VARIANT_STREAM options:kNilOptions] != nil;
 }
+
+- (NSNumber *)mcs_bandwidthValue {
+    NSTextCheckingResult *result = [[self mcs_textCheckingResultsByMatchPattern:@"BANDWIDTH=(\\d+)" options: 0] firstObject];
+    NSRange range = [result rangeAtIndex:1];
+    if (range.location != NSNotFound && range.length > 0) {
+        return [NSNumber numberWithInt:[[self substringWithRange:range] intValue]];
+    }
+    return nil;
+}
+
 @end
 
 
