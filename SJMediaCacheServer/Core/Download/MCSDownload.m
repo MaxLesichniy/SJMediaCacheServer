@@ -201,6 +201,21 @@
     completionHandler(request);
 }
 
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
+    
+    NSURLSessionAuthChallengeDisposition disposition = NSURLSessionAuthChallengePerformDefaultHandling;
+    __block NSURLCredential *credential = nil;
+    
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodClientCertificate]) {
+        credential = [session.configuration.URLCredentialStorage defaultCredentialForProtectionSpace:challenge.protectionSpace];
+        disposition = NSURLSessionAuthChallengeUseCredential;
+    }
+    
+    if (completionHandler) {
+        completionHandler(disposition, credential);
+    }
+}
+
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)task didReceiveResponse:(__kindof NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
     MCSDownloaderDebugLog(@"%@: <%p>.didReceiveResponse { task: %lu, response: %@ };\n", NSStringFromClass(self.class), self, (unsigned long)task.taskIdentifier, response);
 
